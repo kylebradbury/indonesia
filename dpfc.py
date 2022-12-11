@@ -10,6 +10,8 @@ Author: Kyle Bradbury
 
 from numpy import NaN
 import pandas as pd
+import geopandas as gpd
+import difflib
 import os
 
 def extract_dpfc_data(file_path):
@@ -111,3 +113,23 @@ def produce_ground_truth(location,dir_path):
         df = pd.concat([df,muni_data])
     df.to_csv(f'./processed_data/ground_truth_{location}.csv', index=False)
     return df
+
+def merge_with_munis(file_path,dpfc_df):
+    ''' Take the data produced by `produce_ground_truth` and merge with
+    municipality data by matching each municipality based on its word proximity 
+    '''
+    # Extract the municipality boundaries
+    gdf = gpd.read_file(file_path)
+    muni_boundaries = gdf[['NAME_2','geometry']]
+
+    items = gdf['NAME_2'].values
+    names = []
+    for it in items:
+        match = difflib.get_close_matches(it, dpfc_df['city'], cutoff=0, n=1)[0]
+        names.append(match)
+    muni_boundaries.insert(1,'city',names)
+    muni_boundaries
+
+    merged = pd.merge(muni_boundaries,dpfc_df,how='left',on='city')
+    merged = merged.rename(columns={"NAME_2": "city_muni_name"})
+    return merged
